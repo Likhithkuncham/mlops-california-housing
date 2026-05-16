@@ -14,6 +14,7 @@ on:
 env:
   DOCKER_IMAGE: california-housing-api
   PYTHON_VERSION: '3.12'
+  PYTHONPATH: .
 
 jobs:
   # STAGE 1: Code Quality and Testing
@@ -33,20 +34,19 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 pytest requests
+          pip install flake8 pytest requests httpx
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Lint with flake8
         run: |
           # Production check for syntax errors and logic flaws
-          # E9, F63, F7, F82 cover critical errors
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # PEP8 style warnings (exit-zero allows pipeline to continue for now)
+          # PEP8 style warnings
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
 
       - name: Run Unit Tests
         run: |
-          # Run discovery on the tests directory
+          # PYTHONPATH=. is set globally in env, allowing pytest to find api and src modules
           pytest tests/ --doctest-modules --junitxml=junit/test-results.xml
 
   # STAGE 2: Containerization
