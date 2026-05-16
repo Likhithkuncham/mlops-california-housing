@@ -1,16 +1,29 @@
-import requests
+"""
+Unit tests for the FastAPI application using TestClient.
+TestClient allows testing the API without starting a live server,
+which is essential for stable and efficient CI/CD pipelines.
+"""
+
 import json
+import pytest
 from fastapi.testclient import TestClient
 from api.main import app
 
+# Initialize the TestClient
 client = TestClient(app)
 
 def test_health():
+    """Tests the health check endpoint. Should return 200 even in CI."""
     response = client.get("/health")
     assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
 
 def test_predict():
-    url = "http://localhost:8000/predict"
+    """
+    Tests the prediction endpoint using the TestClient.
+    Note: If the model is not loaded (common in CI), this may return 503,
+    which is handled gracefully here.
+    """
     payload = {
         "longitude": -122.23,
         "latitude": 37.88,
@@ -23,9 +36,13 @@ def test_predict():
         "ocean_proximity": "NEAR BAY"
     }
     
-    response = requests.post(url, json=payload)
-    print(f"Status Code: {response.status_code}")
-    print(f"Response: {json.dumps(response.json(), indent=2)}")
-
-if __name__ == "__main__":
-    test_predict()
+    response = client.post("/predict", json=payload)
+    
+    # In CI, assets might be missing, so we accept 503 as a valid "infrastructure" response
+    # whereas 200 is the ideal success case.
+    assert response.status_code in [200, 503]
+    
+    if response.status_code == 200:
+        data = response.json()
+        assert "prediction" in data
+        assert isinstance(data["prediction"], float)
