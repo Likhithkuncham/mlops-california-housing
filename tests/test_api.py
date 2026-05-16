@@ -1,5 +1,13 @@
 import requests
 import json
+from fastapi.testclient import TestClient
+from api.main import app
+
+client = TestClient(app)
+
+def test_health():
+    response = client.get("/health")
+    assert response.status_code == 200
 
 def test_predict():
     url = "http://localhost:8000/predict"

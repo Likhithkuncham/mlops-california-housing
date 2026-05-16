@@ -1,0 +1,85 @@
+name: MLOps End-to-End CI/CD
+
+# 1. Pipeline Triggers
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main, master ]
+
+# 2. Environment Variables
+env:
+  DOCKER_IMAGE: california-housing-api
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # STAGE 1: Code Quality and Testing
+  code-quality:
+    name: Linting and Unit Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # caching pip dependencies for faster builds
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest requests
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Lint with flake8
+        run: |
+          # Production check for syntax errors and logic flaws
+          # E9, F63, F7, F82 cover critical errors
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # PEP8 style warnings (exit-zero allows pipeline to continue for now)
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
+      - name: Run Unit Tests
+        run: |
+          # Run discovery on the tests directory
+          pytest tests/ --doctest-modules --junitxml=junit/test-results.xml
+
+  # STAGE 2: Containerization
+  build-docker:
+    name: Docker Build Validation
+    needs: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          # Validates that the Dockerfile remains functional after changes
+          docker build -t ${{ env.DOCKER_IMAGE }}:latest -f docker/Dockerfile .
+
+  # STAGE 3: Kubernetes Validation
+  validate-k8s:
+    name: K8s Manifest Validation
+    needs: build-docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          # Uses kubectl dry-run to ensure syntax and schema correctness of all K8s files
+          # This catches errors in Deployments, Services, and Namespaces before actual deployment
+          kubectl apply --dry-run=client -f kubernetes/
+          
+  # STAGE 4: Model Drift Check (Optional/Integration)
+  # This can be added as a scheduled job or after a data change

@@ -49,4 +49,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 # Start the application using a production-ready Uvicorn configuration
 # 0.0.0.0 allows connections from outside the container
 # Workers can be tuned based on the number of CPU cores
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -62,7 +62,7 @@ Instrumentator().instrument(app).expose(app)
 # Request Schema
 class HouseFeatures(BaseModel):
     """Input features for house price prediction."""
-    longitude: float = Field(..., example=-122.23)
+    longitude: float = Field(..., json_schema_extra={"example": -122.23})
     latitude: float = Field(..., example=37.88)
     housing_median_age: float = Field(..., example=41.0)
     total_rooms: float = Field(..., example=880.0)
