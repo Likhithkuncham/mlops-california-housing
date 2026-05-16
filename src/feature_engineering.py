@@ -9,6 +9,7 @@ import sys
 import pandas as pd
 import numpy as np
 import joblib
+from datetime import datetime
 from typing import Tuple, Dict, Any
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
@@ -122,6 +123,14 @@ def run_feature_engineering():
         
         test_featured = pd.DataFrame(X_test_transformed, columns=feature_names)
         test_featured[TARGET_COL] = y_test.values
+
+        # Add house_id and event_timestamp for Feast
+        train_featured["house_id"] = range(len(train_featured))
+        test_featured["house_id"] = range(len(train_featured), len(train_featured) + len(test_featured))
+        
+        current_time = datetime.now()
+        train_featured["event_timestamp"] = current_time
+        test_featured["event_timestamp"] = current_time
         
         # 5. Save Artifacts
         if not os.path.exists(FEATURED_DATA_DIR):
@@ -129,6 +138,10 @@ def run_feature_engineering():
         
         train_featured.to_csv(os.path.join(FEATURED_DATA_DIR, "train_featured.csv"), index=False)
         test_featured.to_csv(os.path.join(FEATURED_DATA_DIR, "test_featured.csv"), index=False)
+        
+        # Also save as Parquet for Feast (preferred)
+        train_featured.to_parquet(os.path.join(FEATURED_DATA_DIR, "train_featured.parquet"), index=False)
+        
         logger.info(f"Transformed datasets saved to {FEATURED_DATA_DIR}")
         
         if not os.path.exists(PREPROCESSOR_DIR):
