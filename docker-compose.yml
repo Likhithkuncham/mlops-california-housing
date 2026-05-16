@@ -15,7 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      test: [ "CMD-SHELL", "pg_isready -U mlflow" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -35,7 +35,7 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -58,11 +58,7 @@ services:
       minio:
         condition: service_healthy
     command: >
-      bash -c "pip install psycopg2-binary boto3 && 
-      mlflow server 
-      --backend-store-uri postgresql://mlflow:mlflow_password@db:5432/mlflow 
-      --default-artifact-root s3://mlflow-bucket/ 
-      --host 0.0.0.0"
+      bash -c "pip install psycopg2-binary boto3 &&  mlflow server  --backend-store-uri postgresql://mlflow:mlflow_password@db:5432/mlflow  --default-artifact-root s3://mlflow-bucket/  --host 0.0.0.0"
 
   # 4. ClickHouse - High-performance analytical database
   clickhouse:
@@ -71,11 +67,11 @@ services:
     restart: always
     ports:
       - "8123:8123"
-      - "9000:9000"
+      - "9010:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+      test: [ "CMD", "wget", "--spider", "-q", "localhost:8123/ping" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -85,6 +81,8 @@ services:
     image: prom/prometheus:latest
     container_name: ml_prometheus
     restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "9090:9090"
     volumes:
@@ -118,7 +116,7 @@ services:
     environment:
       - LOG_LEVEL=info
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
