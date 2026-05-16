@@ -1,0 +1,137 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL - Metadata store for MLflow tracking
+  db:
+    image: postgres:16-alpine
+    container_name: mlflow_db
+    restart: always
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow_password
+      POSTGRES_DB: mlflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. MinIO - S3-compatible artifact storage for MLflow
+  minio:
+    image: minio/minio
+    container_name: mlflow_minio
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minio_user
+      MINIO_ROOT_PASSWORD: minio_password
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. MLflow - Experiment tracking and model registry
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: mlflow_server
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - AWS_ACCESS_KEY_ID=minio_user
+      - AWS_SECRET_ACCESS_KEY=minio_password
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - MLFLOW_S3_IGNORE_TLS=true
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: >
+      bash -c "pip install psycopg2-binary boto3 && 
+      mlflow server 
+      --backend-store-uri postgresql://mlflow:mlflow_password@db:5432/mlflow 
+      --default-artifact-root s3://mlflow-bucket/ 
+      --host 0.0.0.0"
+
+  # 4. ClickHouse - High-performance analytical database
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: ml_clickhouse
+    restart: always
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 5. Prometheus - Monitoring and metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ml_prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  # 6. Grafana - Visualization dashboard for metrics
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ml_grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # 7. FastAPI - Model Serving API
+  api:
+    image: california-housing-api:latest
+    container_name: ml_api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - clickhouse
+
+networks:
+  default:
+    name: mlops_network
+
+volumes:
+  postgres_data:
+  minio_data:
+  clickhouse_data:
+  prometheus_data:
+  grafana_data:

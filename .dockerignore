@@ -1,0 +1,15 @@
+venv/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.db
+mlruns/
+notebooks/
+tests/
+.env
+*.log
+.ipynb_checkpoints/
+feature_repo/
