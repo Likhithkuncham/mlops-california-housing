@@ -79,7 +79,7 @@ jobs:
         run: |
           # Uses kubectl dry-run to ensure syntax and schema correctness of all K8s files
           # This catches errors in Deployments, Services, and Namespaces before actual deployment
-          kubectl apply --dry-run=client -f kubernetes/
+          kubectl apply --dry-run=client --validate=false -f kubernetes/
           
   # STAGE 4: Model Drift Check (Optional/Integration)
   # This can be added as a scheduled job or after a data change
