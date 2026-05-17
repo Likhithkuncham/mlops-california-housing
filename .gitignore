@@ -2,7 +2,8 @@ venv/
 __pycache__/
 *.pyc
 mlruns/
-artifacts/
+artifacts/*
+!artifacts/preprocessor/
 logs/
 .env
 .ipynb_checkpoints/
