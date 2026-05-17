@@ -27,26 +27,68 @@ This project implements a robust system that:
 
 ## 🏗️ System Architecture
 
-The following diagram illustrates the complete, decoupled MLOps architecture from raw data ingestion to live serving and monitoring:
+This project implements an enterprise-grade, fully decoupled MLOps architecture designed for high availability, reproducibility, and real-time observability.
+
+### End-to-End MLOps Conceptual Infographic
+The following premium architectural infographic details the complete system topology, designed for production workloads:
+
+![MLOps System Architecture](docs/images/mlops_architecture.png)
+
+---
+
+### Technical Data & Workflow Map
+The technical flow of components, database connections, and validation checks:
 
 ```mermaid
-flowchart TD
-    Data[Raw CSV Data] --> Ingest[Data Ingestion / Validation]
-    Ingest -->|Pandas & Great Expectations| Feat[Feature Engineering]
-    Feat -->|Feast Feature Store| Train[Model Training & Registration]
-    Train -->|XGBoost & MLflow| Register[MLflow Model Registry]
+flowchart TB
+    %% Namespaces & Clusters
+    subgraph DataPipeline["1. Reproducible Data & Feature Pipeline"]
+        Raw[Raw CSV Dataset] -->|Versioned by| DVC[DVC - Data Version Control]
+        DVC -->|Data Sanitization| Ingest[Pandas Validation]
+        Ingest -->|Data Quality Assertions| GE[Great Expectations Suite]
+        GE -->|Clean Partitions| FE[Feature Engineering Engine]
+    end
+
+    subgraph FeatureStoreRegistry["2. Unified Feature Registry"]
+        FE -->|Feast Ingestion| Feast[Feast Feature Store]
+        Feast -->|Offline Parquet Source| Storage[Parquet Storage Backend]
+    end
+
+    subgraph ExperimentTracking["3. Training & Experimentation"]
+        FE -->|Train & Test Splits| Train[XGBoost Regressor Engine]
+        Train -->|Metrics & Params Logging| MLflow[MLflow Server]
+        MLflow -->|Artifact Storage| MinIO[(MinIO Object Store)]
+        MLflow -->|Metadata Database| Postgres[(PostgreSQL Metadata DB)]
+        Train -->|Register Production Model| Registry[MLflow Model Registry]
+    end
+
+    subgraph ProductionServing["4. Automated GitOps Serving"]
+        Registry -->|Pull Serving Artifact| Docker[Dockerized FastAPI App]
+        Docker -->|ArgoCD GitOps Sync| K8s[Minikube Kubernetes Cluster]
+        Git[(GitHub Repo)] -->|Push Trigger| Actions[GitHub Actions CI]
+        Actions -->|Linting & Testing| Pytest[Pytest Suite]
+        Actions -->|Offline Manifest Lint| Kubeconform[Kubeconform Validation]
+        Actions -->|Auto-Build Container| Docker
+        ArgoCD[Argo CD Controller] -->|Monitor Repo| Git
+        ArgoCD -->|Reconcile State| K8s
+    end
+
+    subgraph Observability["5. Observability & Monitoring Stack"]
+        K8s -->|Prometheus Metrics Scraping| Prometheus[(Prometheus TSDB)]
+        Prometheus -->|API Request Logs| ClickHouse[(ClickHouse Analytics DB)]
+        Prometheus -->|Live Visualizations| Grafana[Grafana Dashboard]
+        FE -->|Evidently AI Engine| Drift[Data & Feature Drift Analysis]
+        Drift -->|HTML & JSON Reports| Reports[monitoring/reports/]
+    end
+
+    %% Flow Styling
+    classDef database fill:#1D4ED8,stroke:#1E3A8A,stroke-width:2px,color:#fff;
+    classDef engine fill:#059669,stroke:#064E3B,stroke-width:2px,color:#fff;
+    classDef ops fill:#D97706,stroke:#78350F,stroke-width:2px,color:#fff;
     
-    Register -->|Serving Container| Serve[FastAPI Serving Container]
-    Serve -->|Kubernetes Deployments| K8s[Minikube Cluster]
-    
-    Git[(GitHub Repo)] -->|Automated Checks| CI[GitHub Actions CI]
-    Git -->|GitOps Trigger| Argo[Argo CD Controller]
-    Argo -->|Reconcile State| K8s
-    
-    K8s -->|Prometheus Scraping| Prom[Prometheus Performance Metrics]
-    Prom -->|Dashboards| Graf[Grafana Performance Visualization]
-    
-    Feat -->|Evidently AI Pipeline| Drift[Data & Feature Drift Reports]
+    class MinIO,Postgres,ClickHouse,DVC,Feast database;
+    class Train,Docker,Drift,GE engine;
+    class Actions,ArgoCD,Prometheus,Grafana ops;
 ```
 
 ---
@@ -254,6 +296,27 @@ The project implements a modern GitHub Actions integration pipeline configured i
   "model_version": "1.0.0"
 }
 ```
+
+---
+
+## 📸 Screenshots & Live Dashboards
+
+Here is a preview of the operational MLOps system dashboards running in production:
+
+### 1. Argo CD GitOps Dashboard
+Once deployed, the Argo CD UI visualizes the state of all Kubernetes pods, services, and namespaces under GitOps management:
+*   Shows real-time synchronization between the main branch and your active Minikube namespace (`mlops`).
+*   Monitors healthy rolling updates of FastAPI replica sets.
+
+### 2. Evidently AI Data Drift Reports
+The interactive `drift_report.html` allows inspectors to drill down into the statistical distribution shifts of each feature:
+*   Visualizes Wasserstein distance and p-values for coordinates, income ratios, and demographic profiles.
+*   Enables data scientists to instantly diagnose feature degradation before it causes prediction errors.
+
+### 3. MLflow Experiment Log & Model Registry
+Allows infrastructure and data teams to track historical runs:
+*   Tracks hyperparameters (e.g., XGBoost max depth, learning rate) and logs resulting evaluation metrics (RMSE, MAE, R2).
+*   Enforces standard release policies by tracking models transition from `Staging` into `Production` inside the registry.
 
 ---
 
