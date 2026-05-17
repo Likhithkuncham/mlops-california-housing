@@ -75,11 +75,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Install Kubeconform
+        run: |
+          wget https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz
+          tar -xf kubeconform-linux-amd64.tar.gz
+          chmod +x kubeconform
+
       - name: Validate Kubernetes Manifests
         run: |
-          # Uses kubectl dry-run to ensure syntax and schema correctness of all K8s files
-          # This catches errors in Deployments, Services, and Namespaces before actual deployment
-          kubectl apply --dry-run=client --validate=false -f kubernetes/
+          # Use Kubeconform to validate the syntax and structure of K8s manifests completely offline
+          ./kubeconform -summary -verbose kubernetes/
           
   # STAGE 4: Model Drift Check (Optional/Integration)
   # This can be added as a scheduled job or after a data change
