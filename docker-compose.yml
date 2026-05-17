@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # 1. PostgreSQL - Metadata store for MLflow tracking
