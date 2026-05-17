@@ -11,6 +11,16 @@ from datetime import datetime
 from typing import Dict, Any, List
 import pandas as pd
 
+# ClickHouse integration import with robust multi-tier fallback support
+try:
+    from src.clickhouse_client import save_dataframe_to_clickhouse
+except ImportError:
+    try:
+        from clickhouse_client import save_dataframe_to_clickhouse
+    except ImportError:
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from clickhouse_client import save_dataframe_to_clickhouse
+
 # Constants
 DATA_PATH = "data/raw/housing.csv"
 REPORT_DIR = "artifacts/validation_reports"
@@ -187,6 +197,58 @@ def main():
         # Get and save results
         results = validator.get_results()
         save_report(results)
+        
+        # Row-level partitioning into valid and invalid records
+        logger.info("Partitioning data into valid and invalid subsets...")
+        valid_mask = pd.Series(True, index=df.index)
+        valid_mask &= df["median_house_value"].notnull()
+        for col, bounds in range_config.items():
+            if col in df.columns:
+                valid_mask &= (df[col] >= bounds["min"]) & (df[col] <= bounds["max"])
+        
+        valid_df = df[valid_mask]
+        invalid_df = df[~valid_mask]
+        
+        logger.info(f"Partition summary: {len(valid_df)} valid records, {len(invalid_df)} invalid records.")
+        
+        # ClickHouse DDL Queries for MergeTree tables
+        create_valid_query = """
+        CREATE TABLE IF NOT EXISTS valid_data (
+            longitude Float64,
+            latitude Float64,
+            housing_median_age Float64,
+            total_rooms Float64,
+            total_bedrooms Nullable(Float64),
+            population Float64,
+            households Float64,
+            median_income Float64,
+            median_house_value Float64,
+            ocean_proximity String,
+            validation_timestamp DateTime DEFAULT now()
+        ) ENGINE = MergeTree()
+        ORDER BY (ocean_proximity, median_house_value)
+        """
+        
+        create_invalid_query = """
+        CREATE TABLE IF NOT EXISTS invalid_data (
+            longitude Nullable(Float64),
+            latitude Nullable(Float64),
+            housing_median_age Nullable(Float64),
+            total_rooms Nullable(Float64),
+            total_bedrooms Nullable(Float64),
+            population Nullable(Float64),
+            households Nullable(Float64),
+            median_income Nullable(Float64),
+            median_house_value Nullable(Float64),
+            ocean_proximity Nullable(String),
+            validation_timestamp DateTime DEFAULT now()
+        ) ENGINE = MergeTree()
+        ORDER BY (validation_timestamp)
+        """
+        
+        # Save both subsets to ClickHouse
+        save_dataframe_to_clickhouse(valid_df, "valid_data", create_valid_query)
+        save_dataframe_to_clickhouse(invalid_df, "invalid_data", create_invalid_query)
         
         if results["success"]:
             logger.info("DATA VALIDATION SUCCESSFUL!")

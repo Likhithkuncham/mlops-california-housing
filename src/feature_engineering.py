@@ -16,6 +16,16 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 
+# ClickHouse integration import with robust multi-tier fallback support
+try:
+    from src.clickhouse_client import save_dataframe_to_clickhouse
+except ImportError:
+    try:
+        from clickhouse_client import save_dataframe_to_clickhouse
+    except ImportError:
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from clickhouse_client import save_dataframe_to_clickhouse
+
 # Constants
 TRAIN_DATA_PATH = "data/processed/train.csv"
 TEST_DATA_PATH = "data/processed/test.csv"
@@ -149,6 +159,37 @@ def run_feature_engineering():
             
         joblib.dump(preprocessor, os.path.join(PREPROCESSOR_DIR, "preprocessor.joblib"))
         logger.info(f"Preprocessing pipeline saved to {PREPROCESSOR_DIR}")
+        
+        # 6. Save Preprocessed Data to ClickHouse
+        logger.info("Preparing preprocessed datasets for ClickHouse ingestion...")
+        train_df_to_save = train_featured.copy()
+        test_df_to_save = test_featured.copy()
+        train_df_to_save["split"] = "train"
+        test_df_to_save["split"] = "test"
+        
+        preprocessed_df = pd.concat([train_df_to_save, test_df_to_save], ignore_index=True)
+        
+        # ClickHouse DDL Query dynamically derived from the columns
+        ddl_columns = []
+        for col in preprocessed_df.columns:
+            if col == "house_id":
+                ddl_columns.append(f"{col} Int64")
+            elif col == "event_timestamp":
+                ddl_columns.append(f"{col} DateTime")
+            elif col == "split":
+                ddl_columns.append(f"{col} String")
+            else:
+                ddl_columns.append(f"{col} Float64")
+                
+        create_preprocessed_query = f"""
+        CREATE TABLE IF NOT EXISTS preprocessed_data (
+            {", ".join(ddl_columns)}
+        ) ENGINE = MergeTree()
+        ORDER BY (split, house_id)
+        """
+        
+        # Save preprocessed dataset to ClickHouse
+        save_dataframe_to_clickhouse(preprocessed_df, "preprocessed_data", create_preprocessed_query)
         
         print("\nFeature Engineering Pipeline executed successfully!")
         print(f"Transformed train shape: {train_featured.shape}")
