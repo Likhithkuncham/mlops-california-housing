@@ -18,7 +18,7 @@ scrape_configs:
   - job_name: "fastapi-monitoring"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["host.docker.internal:8000"]
+      - targets: ["api:8000", "host.docker.internal:8000"]
     
     # Honor labels ensures that if the target app has its own labels, 
     # Prometheus won't overwrite them with its own 'job' or 'instance' labels.
