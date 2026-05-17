@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: california-housing-api
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Points to the Git repository containing the Kubernetes manifests
+    repoURL: 'https://github.com/Likhithkuncham/mlops-california-housing.git'
+    targetRevision: HEAD
+    path: kubernetes
+  destination:
+    # Target cluster URL and namespace for deployment
+    server: 'https://kubernetes.default.svc'
+    namespace: mlops
+  syncPolicy:
+    # Automated synchronization rules for production CD
+    automated:
+      prune: true      # Automatically delete resources that are removed from Git
+      selfHeal: true   # Automatically revert manual out-of-sync cluster changes
+    syncOptions:
+      - CreateNamespace=true # Create target namespace if missing
