@@ -5,6 +5,13 @@ Production-grade machine learning training pipeline for California Housing Datas
 import os
 import logging
 import sys
+import io
+
+# Force UTF-8 stream encoding on Windows to prevent charmap UnicodeEncodeErrors with rich emojis
+if sys.platform.startswith('win'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 from typing import Tuple, Dict, Any
 import pandas as pd
 import numpy as np
@@ -84,7 +91,42 @@ def train_and_log_model():
             "random_state": 42
         }
         
-        # MLflow Tracking
+        # MLflow Tracking Connection & Host-to-Container fallbacks
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+        mlflow.set_tracking_uri(tracking_uri)
+        logger.info(f"Using MLflow Tracking URI: {tracking_uri}")
+        
+        # Ensure credentials exist for logging artifacts to MinIO
+        if "AWS_ACCESS_KEY_ID" not in os.environ:
+            os.environ["AWS_ACCESS_KEY_ID"] = "minio_user"
+        if "AWS_SECRET_ACCESS_KEY" not in os.environ:
+            os.environ["AWS_SECRET_ACCESS_KEY"] = "minio_password"
+        if "MLFLOW_S3_ENDPOINT_URL" not in os.environ:
+            os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://localhost:9000"
+        if "MLFLOW_S3_IGNORE_TLS" not in os.environ:
+            os.environ["MLFLOW_S3_IGNORE_TLS"] = "true"
+            
+        # Self-healing: Ensure MinIO bucket 'mlflow-bucket' exists
+        import boto3
+        from botocore.client import Config
+        try:
+            s3_client = boto3.client(
+                's3',
+                endpoint_url="http://localhost:9000",
+                aws_access_key_id="minio_user",
+                aws_secret_access_key="minio_password",
+                config=Config(signature_version='s3v4')
+            )
+            try:
+                s3_client.head_bucket(Bucket="mlflow-bucket")
+                logger.info("MinIO bucket 'mlflow-bucket' already exists.")
+            except Exception:
+                logger.info("MinIO bucket 'mlflow-bucket' not found. Creating it dynamically...")
+                s3_client.create_bucket(Bucket="mlflow-bucket")
+                logger.info("Successfully created MinIO bucket 'mlflow-bucket'.")
+        except Exception as bucket_err:
+            logger.warning(f"Could not verify or create MinIO bucket: {bucket_err}. Continuing...")
+
         mlflow.set_experiment("California_Housing_Regression")
         
         with mlflow.start_run() as run:
