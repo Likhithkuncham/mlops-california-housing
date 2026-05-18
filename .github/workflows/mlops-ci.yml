@@ -49,10 +49,51 @@ jobs:
           # PYTHONPATH=. is set globally in env, allowing pytest to find api and src modules
           pytest tests/ --doctest-modules --junitxml=junit/test-results.xml
 
+  # STAGE 1B: LLM Prompt Validation (Promptfoo Assert Gates)
+  eval-llm-prompts:
+    name: LLM Prompt Evaluation (Promptfoo)
+    needs: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node Dependencies
+        run: npm install
+
+      - name: Start FastAPI API Server
+        run: |
+          python api/main.py &
+          # Wait for API server to boot up
+          for i in {1..10}; do
+            curl -s http://localhost:8000/health && break
+            echo "Waiting for API server..."
+            sleep 2
+          done
+
+      - name: Run Promptfoo Evaluations
+        run: npm run eval
+
   # STAGE 2: Containerization
   build-docker:
     name: Docker Build Validation
-    needs: code-quality
+    needs: [code-quality, eval-llm-prompts]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

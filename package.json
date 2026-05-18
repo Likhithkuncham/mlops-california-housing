@@ -1,0 +1,12 @@
+{
+  "name": "mlops-california-housing-eval",
+  "version": "1.0.0",
+  "description": "Evaluation and prompt engineering suite for California Housing",
+  "scripts": {
+    "eval": "promptfoo eval -c promptfoo/promptfooconfig.yaml --no-dashboard --no-progress-bar",
+    "view": "promptfoo view"
+  },
+  "devDependencies": {
+    "promptfoo": "^0.121.11"
+  }
+}

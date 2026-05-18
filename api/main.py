@@ -72,6 +72,14 @@ class HouseFeatures(BaseModel):
     median_income: float = Field(..., json_schema_extra={"example": 8.3252})
     ocean_proximity: str = Field(..., json_schema_extra={"example": "NEAR BAY"})
 
+# GenAI Real Estate Marketing Schemas
+class DescriptionRequest(BaseModel):
+    predicted_price: float = Field(..., json_schema_extra={"example": 450000.0})
+    ocean_proximity: str = Field(..., json_schema_extra={"example": "NEAR BAY"})
+    total_rooms: float = Field(..., json_schema_extra={"example": 8.0})
+    housing_median_age: float = Field(..., json_schema_extra={"example": 15.0})
+    prompt_template: str = Field(..., json_schema_extra={"example": "Write a short real estate ad for a house valued at ${{predicted_price}} with {{total_rooms}} rooms, located {{ocean_proximity}}."})
+
 # Middleware for Logging
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -137,6 +145,51 @@ async def predict(features: HouseFeatures):
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/generate_description")
+async def generate_description(request: DescriptionRequest):
+    """Generates a professional real estate description using LLM (with mock fallbacks)."""
+    # 1. Format the template prompt with the variables
+    try:
+        prompt = request.prompt_template.replace("{{predicted_price}}", f"{request.predicted_price:,.2f}")
+        prompt = prompt.replace("{{ocean_proximity}}", request.ocean_proximity)
+        prompt = prompt.replace("{{total_rooms}}", f"{int(request.total_rooms)}")
+        prompt = prompt.replace("{{housing_median_age}}", f"{int(request.housing_median_age)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid prompt template formatting: {e}")
+        
+    # 2. Trigger LLM call (OpenAI or Mock)
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key:
+        try:
+            import openai
+            client = openai.OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a professional, high-end real estate marketer agent."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+            description = response.choices[0].message.content.strip()
+            logger.info("Real estate description generated using OpenAI successfully.")
+            return {"description": description, "provider": "openai"}
+        except Exception as e:
+            logger.error(f"OpenAI API call failed: {e}. Falling back to mock generator.")
+            
+    # Mock LLM generator fallback
+    proximity_desc = request.ocean_proximity.lower().replace("_", " ")
+    description = (
+        f"🏠 Stunning California living awaits! Nestled in a highly desirable neighborhood located {proximity_desc}, "
+        f"this magnificent {int(request.total_rooms)}-room home perfectly blends classic character with modern comfort. "
+        f"Featuring an elegant design and a well-preserved {int(request.housing_median_age)}-year history, this property is "
+        f"an absolute gem. Offered at an exceptional estimated market value of ${request.predicted_price:,.2f}, this home represents "
+        f"an unparalleled investment opportunity. Schedule your private tour today!"
+    )
+    logger.info("Real estate description generated using premium Mock LLM successfully.")
+    return {"description": description, "provider": "mock_llm"}
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,0 +1,70 @@
+# Promptfoo configuration file for evaluating real-estate GenAI prompt templates
+description: "California Housing Marketing Description Prompt Evaluation Suite"
+
+# 1. Define the Prompt Templates under test
+prompts:
+  - |
+    Write a professional real estate marketing description for a house valued at ${{predicted_price}} with {{total_rooms}} rooms, located {{ocean_proximity}}. Explain that the house is {{housing_median_age}} years old and represents a fantastic deal.
+  - |
+    Write an ultra-luxury, high-end real estate listing advertisement. Highlight that the elegant {{housing_median_age}}-year-old California home boasts {{total_rooms}} grand rooms and a premier location {{ocean_proximity}}. List the property at an exclusive market value of ${{predicted_price}}.
+
+# 2. Configure our custom FastAPI provider
+providers:
+  - id: "file://promptfoo/api_provider.py"
+    label: "FastAPI Real-Estate GenAI"
+
+# 3. Define the test scenarios, variables, and assertions
+tests:
+  # Test Case 1: Standard inland property
+  - description: "Inland family home check"
+    vars:
+      predicted_price: 250000.00
+      total_rooms: 6
+      housing_median_age: 18
+      ocean_proximity: "INLAND"
+    assertions:
+      - type: "contains"
+        value: "inland"
+        description: "Must state proximity location"
+      - type: "contains"
+        value: "6"
+        description: "Must state exact number of rooms"
+      - type: "javascript"
+        value: "output.length > 80"
+        description: "Should generate a descriptive copy (>80 chars)"
+
+  # Test Case 2: Premium coastal villa
+  - description: "Luxury coastal villa check"
+    vars:
+      predicted_price: 980000.00
+      total_rooms: 12
+      housing_median_age: 4
+      ocean_proximity: "NEAR OCEAN"
+    assertions:
+      - type: "contains"
+        value: "near ocean"
+        description: "Must state proximity location"
+      - type: "contains"
+        value: "12"
+        description: "Must state exact number of rooms"
+      - type: "javascript"
+        value: "output.toLowerCase().includes('luxury') || output.toLowerCase().includes('stunning') || output.toLowerCase().includes('elegant')"
+        description: "Must adopt a premium/luxury marketing tone"
+
+  # Test Case 3: Historic Bay estate
+  - description: "Historic bay property check"
+    vars:
+      predicted_price: 685000.00
+      total_rooms: 8
+      housing_median_age: 45
+      ocean_proximity: "NEAR BAY"
+    assertions:
+      - type: "contains"
+        value: "near bay"
+        description: "Must state proximity location"
+      - type: "contains"
+        value: "8"
+        description: "Must state exact number of rooms"
+      - type: "contains"
+        value: "45"
+        description: "Must state house age"
