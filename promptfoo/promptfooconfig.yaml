@@ -10,7 +10,7 @@ prompts:
 
 # 2. Configure our custom FastAPI provider
 providers:
-  - id: "file://promptfoo/api_provider.py"
+  - id: "file://api_provider.py"
     label: "FastAPI Real-Estate GenAI"
 
 # 3. Define the test scenarios, variables, and assertions
